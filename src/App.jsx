@@ -1,1214 +1,479 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
+// src/App.jsx
 
-const API = "https://api.freeapi.app/api/v1/public/meals";
+import { useEffect, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 
-// ─────────────────────────────────────────────────────────
-// THEME
-// ─────────────────────────────────────────────────────────
-const THEME = {
-  bg: "#050505",
-  surface: "#0d0d0d",
-  card: "#111111",
-  cardHover: "#181818",
+const winningCombinations = [
+  [0, 1, 2],
+  [3, 4, 5],
+  [6, 7, 8],
 
-  border: "rgba(255,255,255,0.06)",
-  borderStrong: "rgba(255,255,255,0.12)",
+  [0, 3, 6],
+  [1, 4, 7],
+  [2, 5, 8],
 
-  text: "#f5f5f5",
-  soft: "#b4b4b4",
-  muted: "#666",
+  [0, 4, 8],
+  [2, 4, 6],
+];
 
-  gold: "#d4af37",
-  goldSoft: "rgba(212,175,55,0.12)",
-
-  green: "#4ade80",
-  orange: "#fb923c",
-  red: "#f87171",
-
-  shadow: "0 20px 60px rgba(0,0,0,0.45)",
-};
-
-// ─────────────────────────────────────────────────────────
-// HELPERS
-// ─────────────────────────────────────────────────────────
-function getIngredients(meal) {
-  const out = [];
-
-  for (let i = 1; i <= 20; i++) {
-    const ing = meal[`strIngredient${i}`];
-    const measure = meal[`strMeasure${i}`];
-
-    if (ing?.trim()) {
-      out.push({
-        name: ing,
-        measure,
-      });
-    }
-  }
-
-  return out;
-}
-
-function getDifficulty(meal) {
-  const count = getIngredients(meal).length;
-
-  if (count <= 5) {
-    return {
-      label: "Easy",
-      color: THEME.green,
-    };
-  }
-
-  if (count <= 10) {
-    return {
-      label: "Medium",
-      color: THEME.orange,
-    };
-  }
-
-  return {
-    label: "Hard",
-    color: THEME.red,
-  };
-}
-
-function getCookingTime(meal) {
-  const words =
-    meal.strInstructions?.split(" ").length || 0;
-
-  return Math.max(10, Math.floor(words / 18));
-}
-
-function getNutrition(meal) {
-  const ingredients = getIngredients(meal).length;
-
-  return {
-    calories: 180 + ingredients * 45,
-    protein: 10 + ingredients * 2,
-    carbs: 20 + ingredients * 3,
-    fat: 6 + ingredients,
-  };
-}
-
-function getSteps(instructions) {
-  return instructions
-    ?.split(".")
-    .filter((x) => x.trim().length > 20);
-}
-
-function loadFavs() {
-  try {
-    return JSON.parse(
-      localStorage.getItem("aurelia_favs") || "[]"
-    );
-  } catch {
-    return [];
-  }
-}
-
-function saveFavs(ids) {
-  localStorage.setItem(
-    "aurelia_favs",
-    JSON.stringify(ids)
-  );
-}
-
-// ─────────────────────────────────────────────────────────
-// BACKGROUND
-// ─────────────────────────────────────────────────────────
-function LuxuryBackground() {
-  return (
-    <>
-      <div
-        style={{
-          position: "fixed",
-          inset: 0,
-          zIndex: 0,
-          background: `
-          radial-gradient(circle at top left, rgba(212,175,55,0.09), transparent 25%),
-          radial-gradient(circle at bottom right, rgba(255,255,255,0.04), transparent 25%),
-          #050505
-        `,
-        }}
-      />
-
-      <div
-        style={{
-          position: "fixed",
-          width: 450,
-          height: 450,
-          top: -150,
-          left: -120,
-          borderRadius: "50%",
-          background: "rgba(212,175,55,0.08)",
-          filter: "blur(120px)",
-        }}
-      />
-
-      <div
-        style={{
-          position: "fixed",
-          width: 450,
-          height: 450,
-          bottom: -150,
-          right: -120,
-          borderRadius: "50%",
-          background: "rgba(255,255,255,0.04)",
-          filter: "blur(120px)",
-        }}
-      />
-    </>
-  );
-}
-
-// ─────────────────────────────────────────────────────────
-// CARD
-// ─────────────────────────────────────────────────────────
-function MealCard({
-  meal,
-  onOpen,
-  isFav,
-  onToggleFav,
-}) {
-  const difficulty = getDifficulty(meal);
-  const time = getCookingTime(meal);
-
-  return (
-    <div
-      onClick={() => onOpen(meal)}
-      style={{
-        background: THEME.card,
-        borderRadius: 26,
-        overflow: "hidden",
-        border: `1px solid ${THEME.border}`,
-        cursor: "pointer",
-        transition: "0.35s",
-        boxShadow: THEME.shadow,
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform =
-          "translateY(-8px)";
-        e.currentTarget.style.borderColor =
-          "rgba(212,175,55,0.25)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform =
-          "translateY(0px)";
-        e.currentTarget.style.borderColor =
-          THEME.border;
-      }}
-    >
-      {/* IMAGE */}
-      <div
-        style={{
-          position: "relative",
-          aspectRatio: "4/3",
-        }}
-      >
-        <img
-          src={meal.strMealThumb}
-          alt={meal.strMeal}
-          style={{
-            width: "100%",
-            height: "100%",
-            objectFit: "cover",
-          }}
-        />
-
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            background:
-              "linear-gradient(to top, rgba(0,0,0,0.9), transparent)",
-          }}
-        />
-
-        {/* HEART */}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleFav(meal.idMeal);
-          }}
-          style={{
-            position: "absolute",
-            top: 16,
-            right: 16,
-
-            width: 40,
-            height: 40,
-
-            borderRadius: "50%",
-            border: "none",
-
-            background: isFav
-              ? THEME.gold
-              : "rgba(0,0,0,0.5)",
-
-            color: isFav ? "#000" : "#fff",
-
-            cursor: "pointer",
-            fontSize: 16,
-          }}
-        >
-          {isFav ? "♥" : "♡"}
-        </button>
-
-        {/* CATEGORY */}
-        <div
-          style={{
-            position: "absolute",
-            left: 16,
-            bottom: 16,
-
-            padding: "7px 14px",
-            borderRadius: 999,
-
-            background: "rgba(0,0,0,0.45)",
-            backdropFilter: "blur(10px)",
-
-            color: "#fff",
-            fontSize: 11,
-            fontWeight: 700,
-          }}
-        >
-          {meal.strCategory}
-        </div>
-      </div>
-
-      {/* BODY */}
-      <div
-        style={{
-          padding: 22,
-        }}
-      >
-        {/* TOP */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <span
-            style={{
-              color: THEME.gold,
-              fontSize: 12,
-              letterSpacing: "0.12em",
-              textTransform: "uppercase",
-              fontWeight: 700,
-            }}
-          >
-            {meal.strArea}
-          </span>
-
-          <div
-            style={{
-              padding: "6px 12px",
-              borderRadius: 999,
-              background: difficulty.color,
-
-              color: "#fff",
-              fontSize: 11,
-              fontWeight: 700,
-            }}
-          >
-            {difficulty.label}
-          </div>
-        </div>
-
-        {/* TITLE */}
-        <h2
-          style={{
-            marginTop: 14,
-            color: THEME.text,
-            fontSize: 22,
-            lineHeight: 1.3,
-            fontWeight: 800,
-            fontFamily:
-              "'Playfair Display', serif",
-          }}
-        >
-          {meal.strMeal}
-        </h2>
-
-        {/* DESC */}
-        <p
-          style={{
-            marginTop: 12,
-            color: THEME.soft,
-            fontSize: 13,
-            lineHeight: 1.8,
-          }}
-        >
-          Elegant handcrafted recipe filled with
-          delicious flavors and premium ingredients.
-        </p>
-
-        {/* INFO */}
-        <div
-          style={{
-            marginTop: 18,
-            display: "flex",
-            gap: 10,
-            flexWrap: "wrap",
-          }}
-        >
-          <div
-            style={{
-              padding: "8px 12px",
-              borderRadius: 999,
-              background: "rgba(255,255,255,0.04)",
-              color: THEME.soft,
-              fontSize: 12,
-            }}
-          >
-            ⏱️ {time} mins
-          </div>
-
-          <div
-            style={{
-              padding: "8px 12px",
-              borderRadius: 999,
-              background: THEME.goldSoft,
-              color: THEME.gold,
-              fontSize: 12,
-            }}
-          >
-            🔥 {getNutrition(meal).calories} kcal
-          </div>
-        </div>
-
-        {/* BUTTON */}
-        <button
-          style={{
-            marginTop: 22,
-            width: "100%",
-            height: 50,
-
-            borderRadius: 14,
-            border: "none",
-
-            background: THEME.gold,
-            color: "#000",
-
-            fontWeight: 800,
-            cursor: "pointer",
-          }}
-        >
-          View Recipe
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────
-// MODAL
-// ─────────────────────────────────────────────────────────
-function MealModal({ meal, onClose }) {
-  if (!meal) return null;
-
-  const ingredients = getIngredients(meal);
-  const steps = getSteps(meal.strInstructions);
-  const nutrition = getNutrition(meal);
-
-  return (
-    <div
-      onClick={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 9999,
-
-        background: "rgba(0,0,0,0.82)",
-        backdropFilter: "blur(16px)",
-
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-
-        padding: 24,
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: "100%",
-          maxWidth: 1100,
-          maxHeight: "92vh",
-
-          overflowY: "auto",
-
-          borderRadius: 30,
-
-          background: THEME.surface,
-          border: `1px solid ${THEME.borderStrong}`,
-
-          boxShadow: THEME.shadow,
-        }}
-      >
-        {/* HERO */}
-        <div
-          style={{
-            position: "relative",
-            height: 340,
-          }}
-        >
-          <img
-            src={meal.strMealThumb}
-            alt={meal.strMeal}
-            style={{
-              width: "100%",
-              height: "100%",
-              objectFit: "cover",
-            }}
-          />
-
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              background:
-                "linear-gradient(to top,#0d0d0d,transparent)",
-            }}
-          />
-
-          <button
-            onClick={onClose}
-            style={{
-              position: "absolute",
-              top: 20,
-              right: 20,
-
-              width: 44,
-              height: 44,
-
-              borderRadius: "50%",
-              border: "none",
-
-              background: "rgba(0,0,0,0.6)",
-              color: "#fff",
-
-              fontSize: 18,
-              cursor: "pointer",
-            }}
-          >
-            ✕
-          </button>
-        </div>
-
-        {/* CONTENT */}
-        <div
-          style={{
-            padding: 40,
-          }}
-        >
-          <p
-            style={{
-              color: THEME.gold,
-              letterSpacing: "0.14em",
-              textTransform: "uppercase",
-              fontSize: 12,
-              fontWeight: 700,
-            }}
-          >
-            {meal.strCategory} • {meal.strArea}
-          </p>
-
-          <h1
-            style={{
-              marginTop: 14,
-              color: THEME.text,
-              fontSize: 44,
-              lineHeight: 1.1,
-              fontFamily:
-                "'Playfair Display', serif",
-            }}
-          >
-            {meal.strMeal}
-          </h1>
-
-          {/* NUTRITION */}
-          <div
-            style={{
-              marginTop: 30,
-              display: "grid",
-              gridTemplateColumns:
-                "repeat(auto-fit,minmax(140px,1fr))",
-              gap: 16,
-            }}
-          >
-            {[
-              {
-                label: "Calories",
-                value: `${nutrition.calories} kcal`,
-              },
-              {
-                label: "Protein",
-                value: `${nutrition.protein}g`,
-              },
-              {
-                label: "Carbs",
-                value: `${nutrition.carbs}g`,
-              },
-              {
-                label: "Fat",
-                value: `${nutrition.fat}g`,
-              },
-            ].map((item) => (
-              <div
-                key={item.label}
-                style={{
-                  padding: 18,
-                  borderRadius: 18,
-                  background: THEME.card,
-                  border: `1px solid ${THEME.border}`,
-                }}
-              >
-                <p
-                  style={{
-                    color: THEME.muted,
-                    fontSize: 12,
-                  }}
-                >
-                  {item.label}
-                </p>
-
-                <h3
-                  style={{
-                    marginTop: 8,
-                    color: THEME.gold,
-                    fontSize: 22,
-                  }}
-                >
-                  {item.value}
-                </h3>
-              </div>
-            ))}
-          </div>
-
-          {/* GRID */}
-          <div
-            style={{
-              marginTop: 40,
-              display: "grid",
-              gridTemplateColumns:
-                "repeat(auto-fit,minmax(320px,1fr))",
-              gap: 40,
-            }}
-          >
-            {/* INGREDIENTS */}
-            <div>
-              <h3
-                style={{
-                  color: THEME.gold,
-                  marginBottom: 18,
-                  fontSize: 22,
-                }}
-              >
-                Ingredients
-              </h3>
-
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 12,
-                }}
-              >
-                {ingredients.map((item, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      padding: "14px 16px",
-                      borderRadius: 14,
-
-                      background: THEME.card,
-                      border: `1px solid ${THEME.border}`,
-
-                      color: THEME.soft,
-                    }}
-                  >
-                    <strong
-                      style={{
-                        color: THEME.gold,
-                      }}
-                    >
-                      {item.measure}
-                    </strong>{" "}
-                    {item.name}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* STEPS */}
-            <div>
-              <h3
-                style={{
-                  color: THEME.gold,
-                  marginBottom: 18,
-                  fontSize: 22,
-                }}
-              >
-                Recipe Steps
-              </h3>
-
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 14,
-                }}
-              >
-                {steps?.map((step, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      padding: 18,
-                      borderRadius: 18,
-
-                      background: THEME.card,
-                      border: `1px solid ${THEME.border}`,
-                    }}
-                  >
-                    <div
-                      style={{
-                        color: THEME.gold,
-                        fontWeight: 700,
-                        marginBottom: 10,
-                      }}
-                    >
-                      Step {i + 1}
-                    </div>
-
-                    <p
-                      style={{
-                        color: THEME.soft,
-                        lineHeight: 1.8,
-                        fontSize: 14,
-                      }}
-                    >
-                      {step}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* YOUTUBE */}
-          {meal.strYoutube && (
-            <a
-              href={meal.strYoutube}
-              target="_blank"
-              rel="noreferrer"
-              style={{
-                display: "inline-flex",
-                marginTop: 40,
-
-                padding: "14px 30px",
-                borderRadius: 999,
-
-                background: THEME.gold,
-                color: "#000",
-
-                textDecoration: "none",
-                fontWeight: 800,
-              }}
-            >
-              ▶ Watch Recipe
-            </a>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────
-// APP
-// ─────────────────────────────────────────────────────────
 export default function App() {
-  const [meals, setMeals] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [board, setBoard] = useState(Array(9).fill(null));
+  const [isXTurn, setIsXTurn] = useState(true);
+  const [winner, setWinner] = useState(null);
+  const [winningCells, setWinningCells] = useState([]);
+  const [draw, setDraw] = useState(false);
 
-  const [query, setQuery] = useState("");
-  const [active, setActive] = useState(null);
+  const [scores, setScores] = useState({
+    X: 0,
+    O: 0,
+    Draws: 0,
+  });
 
-  const [favIds, setFavIds] = useState(loadFavs);
-
-  const [showFavs, setShowFavs] =
-    useState(false);
-
-  async function loadMeals() {
-    try {
-      setLoading(true);
-
-      let all = [];
-
-      for (let p = 1; p <= 4; p++) {
-        const res = await fetch(
-          `${API}?page=${p}&limit=12`
-        );
-
-        const json = await res.json();
-
-        all = [...all, ...(json?.data?.data || [])];
-      }
-
-      const unique = Array.from(
-        new Map(all.map((m) => [m.idMeal, m])).values()
-      );
-
-      setMeals(unique.slice(0, 48));
-    } catch (err) {
-      console.log(err);
-    } finally {
-      setLoading(false);
-    }
-  }
+  const currentPlayer = isXTurn ? "X" : "O";
 
   useEffect(() => {
-    loadMeals();
-  }, []);
+    checkWinner();
+  }, [board]);
 
-  const filtered = useMemo(() => {
-    return meals.filter((m) => {
-      const search = query.toLowerCase();
+  const checkWinner = () => {
+    for (let combo of winningCombinations) {
+      const [a, b, c] = combo;
 
-      const nameMatch = m.strMeal
-        .toLowerCase()
-        .includes(search);
+      if (
+        board[a] &&
+        board[a] === board[b] &&
+        board[a] === board[c]
+      ) {
+        setWinner(board[a]);
+        setWinningCells(combo);
 
-      const ingredientMatch = getIngredients(
-        m
-      ).some((x) =>
-        x.name.toLowerCase().includes(search)
-      );
+        setScores((prev) => ({
+          ...prev,
+          [board[a]]: prev[board[a]] + 1,
+        }));
 
-      const favMatch = showFavs
-        ? favIds.includes(m.idMeal)
-        : true;
+        return;
+      }
+    }
 
-      return (
-        (nameMatch || ingredientMatch) &&
-        favMatch
-      );
-    });
-  }, [meals, query, favIds, showFavs]);
+    if (board.every((cell) => cell !== null)) {
+      setDraw(true);
 
-  const toggleFav = useCallback((id) => {
-    setFavIds((prev) => {
-      const next = prev.includes(id)
-        ? prev.filter((x) => x !== id)
-        : [...prev, id];
-
-      saveFavs(next);
-
-      return next;
-    });
-  }, []);
-
-  const randomMeal = () => {
-    if (!filtered.length) return;
-
-    const random =
-      filtered[
-        Math.floor(Math.random() * filtered.length)
-      ];
-
-    setActive(random);
+      setScores((prev) => ({
+        ...prev,
+        Draws: prev.Draws + 1,
+      }));
+    }
   };
 
-  return (
-    <>
-      <style>{`
-      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:wght@600;700;800&display=swap');
+  const handleClick = (index) => {
+    if (board[index] || winner || draw) return;
 
-      *{
-        margin:0;
-        padding:0;
-        box-sizing:border-box;
-      }
+    const updatedBoard = [...board];
+    updatedBoard[index] = currentPlayer;
 
-      body{
-        background:#050505;
-        font-family:'Inter',sans-serif;
-      }
+    setBoard(updatedBoard);
+    setIsXTurn(!isXTurn);
+  };
 
-      ::-webkit-scrollbar{
-        width:6px;
-      }
+  const resetGame = () => {
+    setBoard(Array(9).fill(null));
+    setWinner(null);
+    setDraw(false);
+    setWinningCells([]);
+    setIsXTurn(true);
+  };
 
-      ::-webkit-scrollbar-thumb{
-        background:rgba(212,175,55,0.3);
-        border-radius:999px;
-      }
-      `}</style>
+  const resetScores = () => {
+    setScores({
+      X: 0,
+      O: 0,
+      Draws: 0,
+    });
 
-      <LuxuryBackground />
+    resetGame();
+  };
 
-      <div
-        style={{
-          position: "relative",
-          zIndex: 2,
-          minHeight: "100vh",
-        }}
-      >
-        {/* TOP NAVBAR */}
-<div
-  style={{
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
+ return (
+  <div className="relative min-h-screen overflow-hidden bg-[#050505] flex items-center justify-center px-4 py-10">
 
-    padding: "24px 32px",
+    {/* Background */}
+    <div className="absolute inset-0">
+      <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_top_left,rgba(139,92,246,0.12),transparent_28%)]" />
+      <div className="absolute bottom-0 right-0 w-full h-full bg-[radial-gradient(circle_at_bottom_right,rgba(34,211,238,0.08),transparent_30%)]" />
+      <div className="absolute inset-0 opacity-[0.03] bg-[linear-gradient(rgba(255,255,255,0.08)_1px,transparent_1px),linear-gradient(to_right,rgba(255,255,255,0.08)_1px,transparent_1px)] bg-[size:50px_50px]" />
+    </div>
 
-    position: "sticky",
-    top: 0,
-    zIndex: 50,
+    {/* Ambient Glow */}
+    <div className="absolute top-[-120px] left-[-120px] w-[320px] h-[320px] bg-violet-500/10 blur-[140px] rounded-full" />
+    <div className="absolute bottom-[-120px] right-[-120px] w-[340px] h-[340px] bg-cyan-500/10 blur-[150px] rounded-full" />
 
-    backdropFilter: "blur(18px)",
-
-    background: "rgba(5,5,5,0.65)",
-
-    borderBottom: `1px solid ${THEME.border}`,
-  }}
->
-  {/* LOGO */}
-{/* SYMBOL LOGO */}
-<div
-  style={{
-    width: 54,
-    height: 54,
-
-    borderRadius: 18,
-
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-
-    background:
-      "linear-gradient(135deg, rgba(212,175,55,0.22), rgba(255,255,255,0.04))",
-
-    border: `1px solid rgba(212,175,55,0.18)`,
-
-    backdropFilter: "blur(12px)",
-
-    boxShadow:
-      "0 10px 30px rgba(212,175,55,0.12)",
-  }}
->
-  <span
-    style={{
-      fontSize: 24,
-      filter: "drop-shadow(0 0 12px rgba(212,175,55,0.4))",
-    }}
-  >
-    🍽️
-  </span>
-</div>
-
-  {/* NAV BUTTONS */}
-  <div
-    style={{
-      display: "flex",
-      gap: 14,
-      alignItems: "center",
-      flexWrap: "wrap",
-    }}
-  >
-    {[
-      "Home",
-      "Recipes",
-      "Favorites",
-      "Categories",
-    ].map((item, i) => (
-      <button
-        key={i}
-        style={{
-          padding: "12px 20px",
-
-          borderRadius: 999,
-
-          border:
-            item === "Home"
-              ? `1px solid rgba(212,175,55,0.35)`
-              : `1px solid ${THEME.border}`,
-
-          background:
-            item === "Home"
-              ? THEME.goldSoft
-              : "rgba(255,255,255,0.03)",
-
-          color:
-            item === "Home"
-              ? THEME.gold
-              : THEME.soft,
-
-          fontSize: 13,
-          fontWeight: 600,
-
-          cursor: "pointer",
-
-          backdropFilter: "blur(12px)",
-
-          transition: "0.3s",
-        }}
-      >
-        {item}
-      </button>
-    ))}
-
-    {/* SIGN OUT */}
-    <button
-      style={{
-        padding: "12px 22px",
-
-        borderRadius: 999,
-        border: "none",
-
-        background:
-          "linear-gradient(135deg,#d4af37,#f5d76e)",
-
-        color: "#000",
-
-        fontWeight: 800,
-        fontSize: 13,
-
-        cursor: "pointer",
-
-        boxShadow:
-          "0 10px 30px rgba(212,175,55,0.22)",
-      }}
+    {/* Main Wrapper */}
+    <motion.div
+      initial={{ opacity: 0, y: 24 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.45 }}
+      className="relative z-10 w-full max-w-6xl"
     >
-      Sign Out
-    </button>
-  </div>
-</div>
-        {/* HERO */}
-        <section
-          style={{
-            padding: "70px 24px 30px",
-            textAlign: "center",
-          }}
-        >
-          <p
-            style={{
-              color: THEME.gold,
-              letterSpacing: "0.28em",
-              textTransform: "uppercase",
-              fontSize: 11,
-              fontWeight: 700,
-            }}
-          >
-            Curated Recipe Collection
-          </p>
 
-          <h1
-            style={{
-              marginTop: 18,
-              fontSize: "clamp(42px,7vw,82px)",
-              lineHeight: 0.95,
+      {/* Header */}
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8">
 
-              fontWeight: 800,
-
-              fontFamily:
-                "'Playfair Display', serif",
-
-              background:
-                "linear-gradient(180deg,#ffffff 0%,#d4af37 180%)",
-
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-            }}
-          >
-            Aurelia
-            <br />
-            Recipes
+        <div>
+          <h1 className="text-5xl md:text-6xl font-black tracking-tight text-white">
+            Tic Tac Toe
           </h1>
 
-          <p
-            style={{
-              maxWidth: 650,
-              margin: "22px auto 0",
-
-              color: THEME.soft,
-              lineHeight: 1.8,
-              fontSize: 14,
-            }}
-          >
-            Discover gourmet meals, elegant
-            cuisines, premium recipes, and delicious
-            handcrafted dishes from around the world.
+          <p className="mt-3 text-xs uppercase tracking-[0.35em] text-zinc-500">
+            
           </p>
+        </div>
 
-          {/* SEARCH */}
-          <div
-            style={{
-              margin: "30px auto 0",
-              maxWidth: 700,
-              display: "flex",
-              gap: 14,
-              flexWrap: "wrap",
-              justifyContent: "center",
-            }}
+        {!winner && !draw && (
+          <motion.div
+            key={currentPlayer}
+            initial={{ opacity: 0, scale: 0.92 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="
+              mt-6 md:mt-0
+              flex items-center gap-4
+              px-5 py-4
+              rounded-2xl
+              border border-white/5
+              bg-white/[0.03]
+              backdrop-blur-xl
+            "
           >
-            <input
-              value={query}
-              onChange={(e) =>
-                setQuery(e.target.value)
-              }
-              placeholder="Search meals or ingredients..."
-              style={{
-                flex: 1,
-                minWidth: 260,
-                height: 64,
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.25em] text-zinc-500">
+                Current Turn
+              </p>
 
-                borderRadius: 999,
-
-                border: `1px solid ${THEME.borderStrong}`,
-
-                background:
-                  "rgba(255,255,255,0.04)",
-
-                padding: "0 24px",
-
-                color: "#fff",
-                fontSize: 14,
-
-                outline: "none",
-              }}
-            />
-
-            <button
-              onClick={randomMeal}
-              style={{
-                height: 64,
-                padding: "0 26px",
-
-                borderRadius: 999,
-                border: "none",
-
-                background: THEME.gold,
-                color: "#000",
-
-                fontWeight: 800,
-                cursor: "pointer",
-              }}
-            >
-              🎲 Surprise Me
-            </button>
-
-            <button
-              onClick={() =>
-                setShowFavs(!showFavs)
-              }
-              style={{
-                height: 64,
-                padding: "0 24px",
-
-                borderRadius: 999,
-
-                border: `1px solid ${THEME.borderStrong}`,
-
-                background: showFavs
-                  ? THEME.goldSoft
-                  : "rgba(255,255,255,0.03)",
-
-                color: showFavs
-                  ? THEME.gold
-                  : "#fff",
-
-                fontWeight: 700,
-                cursor: "pointer",
-              }}
-            >
-              ❤️ Favorites
-            </button>
-          </div>
-        </section>
-
-        {/* GRID */}
-        <section
-        
-          style={{
-            maxWidth: 1450,
-            margin: "0 auto",
-            padding: "20px 24px 90px",
-          }}
-        >
-          {loading ? (
-            <div
-              style={{
-                textAlign: "center",
-                color: THEME.soft,
-              }}
-            >
-              Loading recipes...
+              <h3 className="text-lg font-semibold text-white mt-1">
+                Player {currentPlayer}
+              </h3>
             </div>
-          ) : (
+
             <div
-              style={{
-                display: "grid",
-                gridTemplateColumns:
-                  "repeat(auto-fill,minmax(320px,1fr))",
-                gap: 28,
-              }}
+              className={`
+                w-14 h-14 rounded-2xl
+                flex items-center justify-center
+                text-2xl font-black
+
+                ${
+                  currentPlayer === "X"
+                    ? "bg-violet-500/10 text-violet-300 border border-violet-400/15"
+                    : "bg-cyan-500/10 text-cyan-300 border border-cyan-400/15"
+                }
+              `}
             >
-              {filtered.map((meal) => (
-                <MealCard
-                  key={meal.idMeal}
-                  meal={meal}
-                  onOpen={setActive}
-                  isFav={favIds.includes(
-                    meal.idMeal
-                  )}
-                  onToggleFav={toggleFav}
-                />
-              ))}
+              {currentPlayer}
             </div>
-          )}
-        </section>
-
-        {/* FOOTER */}
-        <footer
-          style={{
-            borderTop: `1px solid ${THEME.border}`,
-            padding: "34px 24px",
-            textAlign: "center",
-          }}
-        >
-          <h2
-            style={{
-              color: THEME.gold,
-              fontFamily:
-                "'Playfair Display', serif",
-              fontSize: 30,
-            }}
-          >
-            Aurelia Recipes
-          </h2>
-
-          <p
-            style={{
-              marginTop: 12,
-              color: THEME.muted,
-              fontSize: 13,
-            }}
-          >
-            Gourmet Recipes • Elegant Cuisine •
-            Premium Taste
-          </p>
-        </footer>
+          </motion.div>
+        )}
       </div>
 
-      <MealModal
-        meal={active}
-        onClose={() => setActive(null)}
-      />
-    </>
-  );
+      {/* Main Card */}
+      <div
+        className="
+          rounded-[36px]
+          overflow-hidden
+          border border-white/5
+          bg-[#0a0a0a]/90
+          backdrop-blur-2xl
+          shadow-[0_30px_120px_rgba(0,0,0,0.75)]
+        "
+      >
+
+        <div className="grid lg:grid-cols-[320px_1fr]">
+
+          {/* Sidebar */}
+          <div className="border-r border-white/5 p-8 bg-white/[0.02]">
+
+            {/* Scores */}
+            <div className="space-y-4">
+
+              {/* X */}
+              <motion.div
+                whileHover={{ y: -3 }}
+                className="
+                  rounded-3xl
+                  border border-violet-400/10
+                  bg-violet-500/[0.05]
+                  p-5
+                "
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.25em] text-violet-400">
+                      Player X
+                    </p>
+
+                    <h2 className="text-5xl font-black mt-2 text-white">
+                      {scores.X}
+                    </h2>
+                  </div>
+
+                  <div className="w-16 h-16 rounded-2xl bg-violet-500/10 border border-violet-400/10 flex items-center justify-center">
+                    <span className="text-3xl font-black text-violet-300">
+                      X
+                    </span>
+                  </div>
+                </div>
+              </motion.div>
+
+              {/* O */}
+              <motion.div
+                whileHover={{ y: -3 }}
+                className="
+                  rounded-3xl
+                  border border-cyan-400/10
+                  bg-cyan-500/[0.05]
+                  p-5
+                "
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.25em] text-cyan-400">
+                      Player O
+                    </p>
+
+                    <h2 className="text-5xl font-black mt-2 text-white">
+                      {scores.O}
+                    </h2>
+                  </div>
+
+                  <div className="w-16 h-16 rounded-2xl bg-cyan-500/10 border border-cyan-400/10 flex items-center justify-center">
+                    <span className="text-3xl font-black text-cyan-300">
+                      O
+                    </span>
+                  </div>
+                </div>
+              </motion.div>
+
+              {/* Draws */}
+              <div
+                className="
+                  rounded-3xl
+                  border border-white/5
+                  bg-white/[0.03]
+                  p-5
+                "
+              >
+                <p className="text-xs uppercase tracking-[0.25em] text-zinc-500">
+                  Draws
+                </p>
+
+                <h2 className="text-5xl font-black mt-2 text-white">
+                  {scores.Draws}
+                </h2>
+              </div>
+            </div>
+
+            {/* Match Status */}
+            <div className="mt-8">
+
+              <AnimatePresence mode="wait">
+
+                {winner && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`
+                      rounded-3xl
+                      p-6
+                      border
+
+                      ${
+                        winner === "X"
+                          ? "border-violet-400/15 bg-violet-500/[0.06]"
+                          : "border-cyan-400/15 bg-cyan-500/[0.06]"
+                      }
+                    `}
+                  >
+                    <p className="text-xs uppercase tracking-[0.25em] text-zinc-500 mb-2">
+                      Match Result
+                    </p>
+
+                    <h2 className="text-4xl font-black text-white">
+                      {winner} Wins
+                    </h2>
+                  </motion.div>
+                )}
+
+                {draw && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="
+                      rounded-3xl
+                      border border-white/5
+                      bg-white/[0.03]
+                      p-6
+                    "
+                  >
+                    <p className="text-xs uppercase tracking-[0.25em] text-zinc-500 mb-2">
+                      Match Result
+                    </p>
+
+                    <h2 className="text-4xl font-black text-white">
+                      Draw Match
+                    </h2>
+                  </motion.div>
+                )}
+
+              </AnimatePresence>
+            </div>
+
+            {/* Buttons */}
+            <div className="mt-8 space-y-4">
+
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={resetGame}
+                className="
+                  w-full
+                  py-4
+                  rounded-2xl
+
+                  bg-gradient-to-r
+                  from-violet-500
+                  to-cyan-500
+
+                  text-white
+                  font-semibold
+                  text-lg
+
+                  hover:opacity-90
+
+                  transition-all
+                "
+              >
+                Start Over
+              </motion.button>
+
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={resetScores}
+                className="
+                  w-full
+                  py-4
+                  rounded-2xl
+
+                  border border-white/5
+                  bg-white/[0.03]
+
+                  text-white
+                  font-semibold
+                  text-lg
+
+                  hover:bg-white/[0.05]
+
+                  transition-all
+                "
+              >
+                Reset Arena
+              </motion.button>
+            </div>
+          </div>
+
+         
+          <div className="p-8 md:p-10 flex items-center justify-center">
+
+            <div className="grid grid-cols-3 gap-5 w-full max-w-md">
+
+              {board.map((cell, index) => {
+                const isWinningCell =
+                  winningCells.includes(index);
+
+                return (
+                  <motion.button
+                    key={index}
+                    whileHover={{
+                      y: -4,
+                      scale: 1.02,
+                    }}
+                    whileTap={{
+                      scale: 0.95,
+                    }}
+                    onClick={() => handleClick(index)}
+                    className={`
+                      relative
+                      aspect-square
+                      rounded-[30px]
+
+                      flex
+                      items-center
+                      justify-center
+
+                      overflow-hidden
+
+                      border
+                      transition-all
+                      duration-300
+
+                      ${
+                        isWinningCell
+                          ? winner === "X"
+                            ? "border-violet-400/30 bg-violet-500/[0.12] shadow-[0_0_40px_rgba(139,92,246,0.18)]"
+                            : "border-cyan-400/30 bg-cyan-500/[0.12] shadow-[0_0_40px_rgba(34,211,238,0.18)]"
+                          : "border-white/5 bg-white/[0.03] hover:border-white/10"
+                      }
+                    `}
+                  >
+
+                    <div
+                      className="
+                        absolute
+                        inset-0
+
+                        opacity-0
+                        hover:opacity-100
+
+                        transition-opacity
+                        duration-500
+
+                        bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.07),transparent_70%)]
+                      "
+                    />
+
+                    {/* Symbol */}
+                    <motion.span
+                      initial={{
+                        scale: 0.5,
+                        opacity: 0,
+                      }}
+                      animate={{
+                        scale: 1,
+                        opacity: 1,
+                      }}
+                      className={`
+                        relative
+                        z-10
+
+                        text-6xl
+                        md:text-7xl
+                        font-black
+
+                        ${
+                          cell === "X"
+                            ? "text-violet-300"
+                            : "text-cyan-300"
+                        }
+                      `}
+                    >
+                      {cell}
+                    </motion.span>
+                  </motion.button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  </div>
+);
 }
