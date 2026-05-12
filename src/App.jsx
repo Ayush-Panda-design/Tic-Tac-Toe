@@ -1,17 +1,12 @@
-// src/App.jsx
-
 import { useEffect, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 
 const winningCombinations = [
   [0, 1, 2],
   [3, 4, 5],
   [6, 7, 8],
-
   [0, 3, 6],
   [1, 4, 7],
   [2, 5, 8],
-
   [0, 4, 8],
   [2, 4, 6],
 ];
@@ -20,14 +15,8 @@ export default function App() {
   const [board, setBoard] = useState(Array(9).fill(null));
   const [isXTurn, setIsXTurn] = useState(true);
   const [winner, setWinner] = useState(null);
-  const [winningCells, setWinningCells] = useState([]);
   const [draw, setDraw] = useState(false);
-
-  const [scores, setScores] = useState({
-    X: 0,
-    O: 0,
-    Draws: 0,
-  });
+  const [winningCells, setWinningCells] = useState([]);
 
   const currentPlayer = isXTurn ? "X" : "O";
 
@@ -39,40 +28,25 @@ export default function App() {
     for (let combo of winningCombinations) {
       const [a, b, c] = combo;
 
-      if (
-        board[a] &&
-        board[a] === board[b] &&
-        board[a] === board[c]
-      ) {
+      if (board[a] && board[a] === board[b] && board[a] === board[c]) {
         setWinner(board[a]);
         setWinningCells(combo);
-
-        setScores((prev) => ({
-          ...prev,
-          [board[a]]: prev[board[a]] + 1,
-        }));
-
         return;
       }
     }
 
     if (board.every((cell) => cell !== null)) {
       setDraw(true);
-
-      setScores((prev) => ({
-        ...prev,
-        Draws: prev.Draws + 1,
-      }));
     }
   };
 
   const handleClick = (index) => {
     if (board[index] || winner || draw) return;
 
-    const updatedBoard = [...board];
-    updatedBoard[index] = currentPlayer;
+    const newBoard = [...board];
+    newBoard[index] = currentPlayer;
 
-    setBoard(updatedBoard);
+    setBoard(newBoard);
     setIsXTurn(!isXTurn);
   };
 
@@ -84,163 +58,140 @@ export default function App() {
     setIsXTurn(true);
   };
 
-  const resetScores = () => {
-    setScores({
-      X: 0,
-      O: 0,
-      Draws: 0,
-    });
-
-    resetGame();
+  
+ 
+  const styles = {
+    container: {
+      height: "100vh",
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      background: "radial-gradient(circle at top, #1a1a1a, #000000)",
+      color: "white",
+      fontFamily: "Arial",
+      position: "relative",
+      overflow: "hidden",
+    },
+  
+    box: {
+      textAlign: "center",
+      padding: "30px",
+      borderRadius: "20px",
+      background: "rgba(255,255,255,0.05)",
+      border: "1px solid rgba(255,255,255,0.1)",
+      backdropFilter: "blur(12px)",
+      boxShadow: "0 0 40px rgba(0,0,0,0.6)",
+      zIndex: 2,
+    },
+  
+    title: {
+      fontSize: "45px",
+      marginBottom: "10px",
+      background: "linear-gradient(90deg, cyan, pink)",
+      WebkitBackgroundClip: "text",
+      color: "transparent",
+      letterSpacing: "2px",
+    },
+  
+    status: {
+      marginBottom: "15px",
+      fontSize: "18px",
+      color: "#aaa",
+    },
+  
+    board: {
+      display: "grid",
+      gridTemplateColumns: "repeat(3, 110px)",
+      gap: "12px",
+      justifyContent: "center",
+      marginBottom: "20px",
+    },
+  
+    cell: {
+      width: "110px",
+      height: "110px",
+      fontSize: "38px",
+      fontWeight: "bold",
+      cursor: "pointer",
+      borderRadius: "18px",
+      border: "1px solid rgba(255,255,255,0.15)",
+      background: "rgba(255,255,255,0.04)",
+      color: "white",
+      transition: "all 0.25s ease",
+      boxShadow: "0 0 0px rgba(0,0,0,0)",
+    },
+  
+    button: {
+      padding: "12px 25px",
+      border: "none",
+      borderRadius: "12px",
+      cursor: "pointer",
+      background: "linear-gradient(90deg, cyan, blue)",
+      fontWeight: "bold",
+      color: "black",
+      transition: "0.3s",
+      boxShadow: "0 5px 20px rgba(0,255,255,0.2)",
+    },
+  
+    win: {
+      color: "lightgreen",
+      fontSize: "24px",
+      marginBottom: "10px",
+      textShadow: "0 0 10px rgba(0,255,0,0.5)",
+    },
+  
+    draw: {
+      color: "yellow",
+      fontSize: "24px",
+      marginBottom: "10px",
+    },
   };
 
   return (
-    <div className="min-h-screen bg-black text-white flex items-center justify-center px-4 py-10 overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/20 via-black to-cyan-900/20" />
+    <div style={styles.container}>
+      <div style={styles.box}>
+        <h1 style={styles.title}>Tic Tac Toe</h1>
 
-      <motion.div
-        initial={{ opacity: 0, scale: 0.85 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.5 }}
-        className="relative z-10 w-full max-w-md"
-      >
-        {/* Title */}
-        <div className="text-center mb-8">
-          <h1 className="text-5xl font-black bg-gradient-to-r from-cyan-400 to-indigo-500 text-transparent bg-clip-text">
-            Tic Tac Toe
-          </h1>
-
-          <p className="text-gray-400 mt-3">
-            Modern React Game Experience
-          </p>
-        </div>
-
-        {/* Scoreboard */}
-        <div className="grid grid-cols-3 gap-4 mb-8">
-          <div className="bg-white/5 border border-white/10 backdrop-blur-xl rounded-2xl p-4 text-center">
-            <h2 className="text-cyan-400 font-bold text-lg">X</h2>
-            <p className="text-3xl font-black">{scores.X}</p>
+        {!winner && !draw && (
+          <div style={styles.status}>
+            Current Turn: <b>{currentPlayer}</b>
           </div>
+        )}
 
-          <div className="bg-white/5 border border-white/10 backdrop-blur-xl rounded-2xl p-4 text-center">
-            <h2 className="text-yellow-400 font-bold text-lg">Draws</h2>
-            <p className="text-3xl font-black">{scores.Draws}</p>
-          </div>
+        {winner && <div style={styles.win}>{winner} Wins 🎉</div>}
+        {draw && <div style={styles.draw}>It's a Draw 🤝</div>}
 
-          <div className="bg-white/5 border border-white/10 backdrop-blur-xl rounded-2xl p-4 text-center">
-            <h2 className="text-pink-400 font-bold text-lg">O</h2>
-            <p className="text-3xl font-black">{scores.O}</p>
-          </div>
-        </div>
-
-        {/* Status */}
-        <AnimatePresence mode="wait">
-          {!winner && !draw && (
-            <motion.div
-              key={currentPlayer}
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              className="text-center mb-6"
-            >
-              <p className="text-lg text-gray-300">
-                Current Turn:
-              </p>
-
-              <span
-                className={`text-3xl font-black ${
-                  currentPlayer === "X"
-                    ? "text-cyan-400"
-                    : "text-pink-400"
-                }`}
-              >
-                {currentPlayer}
-              </span>
-            </motion.div>
-          )}
-
-          {winner && (
-            <motion.div
-              initial={{ scale: 0.7, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="text-center mb-6"
-            >
-              <h2 className="text-4xl font-black text-green-400">
-                {winner} Wins!
-              </h2>
-            </motion.div>
-          )}
-
-          {draw && (
-            <motion.div
-              initial={{ scale: 0.7, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="text-center mb-6"
-            >
-              <h2 className="text-4xl font-black text-yellow-400">
-                It's a Draw!
-              </h2>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Game Board */}
-        <div className="grid grid-cols-3 gap-4 mb-8">
+        <div style={styles.board}>
           {board.map((cell, index) => {
-            const isWinningCell = winningCells.includes(index);
+            const isWin = winningCells.includes(index);
 
             return (
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.92 }}
+              <button
                 key={index}
                 onClick={() => handleClick(index)}
-                className={`
-                  h-28 rounded-3xl text-5xl font-black
-                  flex items-center justify-center
-                  border transition-all duration-300
-                  backdrop-blur-xl
-
-                  ${
-                    isWinningCell
-                      ? "bg-green-500/20 border-green-400 shadow-[0_0_25px_rgba(34,197,94,0.6)]"
-                      : "bg-white/5 border-white/10 hover:bg-white/10"
-                  }
-
-                  ${
+                style={{
+                  ...styles.cell,
+                  background: isWin
+                    ? "rgba(0,255,0,0.2)"
+                    : "rgba(255,255,255,0.05)",
+                  color:
                     cell === "X"
-                      ? "text-cyan-400"
-                      : "text-pink-400"
-                  }
-                `}
+                      ? "cyan"
+                      : cell === "O"
+                      ? "pink"
+                      : "white",
+                }}
               >
                 {cell}
-              </motion.button>
+              </button>
             );
           })}
         </div>
 
-        {/* Buttons */}
-        <div className="flex gap-4">
-          <motion.button
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={resetGame}
-            className="flex-1 py-4 rounded-2xl font-bold text-lg bg-gradient-to-r from-cyan-500 to-indigo-600 hover:opacity-90 transition"
-          >
-            Reset Game
-          </motion.button>
-
-          <motion.button
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={resetScores}
-            className="flex-1 py-4 rounded-2xl font-bold text-lg bg-gradient-to-r from-pink-500 to-purple-600 hover:opacity-90 transition"
-          >
-            Reset Scores
-          </motion.button>
-        </div>
-      </motion.div>
+        <button style={styles.button} onClick={resetGame}>
+          Reset Game
+        </button>
+      </div>
     </div>
   );
 }
